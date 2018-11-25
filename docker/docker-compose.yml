@@ -1,0 +1,56 @@
+version: '3'
+services:
+
+  eth-node:
+    image: kauriorg/parity-docker
+    ports:
+      - "8545:8545"
+    volumes:
+      - .ethereum_data:/root/.local/share/io.parity.ethereum
+      - .ethereum_log:/data/parity-logs
+    environment:
+      TRANSFER_AMOUNT: 10
+      TRANSFER_ACCOUNTS: 0x627306090abaB3A6e1400e9345bC60c78a8BEf57,0xF0f15Cedc719B5A55470877B0710d5c7816916b1
+    networks:
+      - default
+
+  truffle:
+    image: gjeanmart/truffle-docker
+    volumes:
+      - ../contracts:/project
+    ports:
+      - "8888:8888"
+    depends_on:
+      - eth-node
+    environment:
+      NETWORK: docker
+      API_PORT: 8888
+      API_HOST: 0.0.0.0
+    networks:
+      - default
+
+  backend:
+    build: ../backend/
+    image: gjeanmart/metatx-relay-backend
+    ports:
+      - "8080:8080"
+    environment:
+      RPC_URL: http://eth-node:8545
+      TRUFFLE_ENDPOINT_HOST: truffle
+    depends_on:
+      - truffle
+    command: >
+      /bin/sh -c '
+        echo Waiting for contract to be deployed...;
+        while ! nc -z truffle 8888;
+        do
+          sleep 1;
+        done;
+        echo "Contracts deployed"
+        npm start
+      '
+    networks:
+      - default
+
+networks:
+  default:
