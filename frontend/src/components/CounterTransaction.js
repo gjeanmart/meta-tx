@@ -15,7 +15,7 @@ class CounterTransaction extends Component {
 
   render() {
       return (
-      	<div>
+        <div>
         <button onClick={this.increment}>
           increment via direct transaction
         </button>
