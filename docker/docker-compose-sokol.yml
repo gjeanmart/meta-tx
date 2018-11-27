@@ -1,0 +1,61 @@
+version: '3'
+services:
+
+  truffle:
+    image: gjeanmart/truffle-docker
+    volumes:
+      - ../contracts:/project
+    ports:
+      - "8888:8888"
+    environment:
+      NETWORK: poa_sokol
+      API_PORT: 8888
+      API_HOST: 0.0.0.0
+    networks:
+      - default
+
+  backend:
+    build: ../backend/
+    image: gjeanmart/metatx-relay-backend
+    ports:
+      - "8080:8080"
+    environment:
+      RPC_URL: https://sokol.poa.network
+      TRUFFLE_ENDPOINT_HOST: truffle
+    depends_on:
+      - truffle
+    command: >
+      /bin/sh -c '
+        echo Waiting for contract to be deployed...;
+        while ! nc -z truffle 8888;
+        do
+          sleep 1;
+        done;
+        echo "Contracts deployed"
+        npm start
+      '
+    networks:
+      - default
+
+  frontend:
+    build: ../frontend/
+    image: gjeanmart/metatx-relay-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - truffle
+    command: >
+      /bin/sh -c '
+        echo Waiting for contract to be deployed...;
+        while ! nc -z truffle 8888;
+        do
+          sleep 1;
+        done;
+        echo "Contracts deployed"
+        npm start
+      '
+    networks:
+      - default
+
+networks:
+  default:
