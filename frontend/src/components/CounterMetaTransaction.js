@@ -28,7 +28,7 @@ class CounterMetaTransaction extends Component {
 
     const signature = await this.sign(hash);
 
-    const resp = await axios.post('http://localhost:8080/relay', {
+    const resp = await axios.post(process.env.REACT_APP_METATX_ENDPOINT + '/relay', {
       'signature': signature,
       'message': hash,
       'data': {      

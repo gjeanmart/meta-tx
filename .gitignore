@@ -1,8 +1,9 @@
+.env
 *.abi
 package-lock.json
 *.bin
 .*-docker/
-.ethertem*/
+.ethereum*/
 samples/.*/
 node_modules
 build

@@ -26,11 +26,17 @@ class App extends Component {
         'BouncerProxy': BouncerProxy
       }
     });
+
+    this.interval = setInterval(() => this.refresh(), 3000);
+  }
+
+  componentWillUnmount() {
+    clearInterval(this.interval);
   }
 
   async getContractInstance(contractName) {
     // Get Truffle Artefact
-    const resp = await axios.get('http://localhost:8888/api/'+contractName+'/all');
+    const resp = await axios.get(process.env.REACT_APP_TRUFFLE_ENDPOINT+'/'+contractName+'/all');
  
     // Initialize Truffle contract
     let c = contract(resp.data)
