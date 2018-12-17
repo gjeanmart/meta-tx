@@ -9,8 +9,9 @@ module.exports = {
       network_id: "*"
     },
     docker: {
-      host: "eth-node",
-      port: 8545,
+      provider: function() {
+        return new HDWalletProvider(process.env.MNEMONIC, "http://eth-node:8545")
+      },
       network_id: "*"
     },
     poa_sokol: {

@@ -32,7 +32,7 @@
     }
 
     //function forward(bytes sig, address signer, address destination, uint value, bytes data, address rewardToken, uint rewardAmount)
-    SmartContract.prototype.forward = async function(signature, signer, destination, value, data, rewardToken, rewardAmount) {
+    SmartContract.prototype.forward = async function(signature, message) {
 
         return new Promise(async (resolve, reject) => {
 
@@ -40,12 +40,12 @@
 
             instance.forward(
                     signature,
-                    signer,
-                    destination,
-                    value,
-                    data,
-                    rewardToken,
-                    rewardAmount,
+                    message.from,
+                    message.to,
+                    message.value,
+                    message.data,
+                    message.rewardToken,
+                    message.rewardAmount,
                     { from: this.address, gasPrice: constant._GAS_PRICE }
 
             ).then(function(tx) {

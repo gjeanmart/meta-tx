@@ -52,25 +52,25 @@ services:
     networks:
       - default
 
-  frontend:
-    build: ../frontend/
-    image: gjeanmart/metatx-relay-frontend
-    ports:
-      - "3000:3000"
-    depends_on:
-      - truffle
-    command: >
-      /bin/sh -c '
-        echo Waiting for contract to be deployed...;
-        while ! nc -z truffle 8888;
-        do
-          sleep 1;
-        done;
-        echo "Contracts deployed"
-        npm start
-      '
-    networks:
-      - default
+#  frontend:
+#    build: ../frontend/
+#    image: gjeanmart/metatx-relay-frontend
+#    ports:
+#      - "3000:3000"
+#    depends_on:
+#      - truffle
+#    command: >
+#      /bin/sh -c '
+#        echo Waiting for contract to be deployed...;
+#        while ! nc -z truffle 8888;
+#        do
+#          sleep 1;
+#        done;
+#        echo "Contracts deployed"
+#        npm start
+#      '
+#    networks:
+#      - default
 
 networks:
   default:

@@ -5,6 +5,7 @@ import contract from 'truffle-contract';
 import CounterCall from './components/CounterCall';
 import CounterTransaction from './components/CounterTransaction';
 import CounterMetaTransaction from './components/CounterMetaTransaction';
+import UpdateWhitelistTransaction from './components/UpdateWhitelistTransaction';
 import PropTypes from 'prop-types';
 
 class App extends Component {
@@ -67,6 +68,9 @@ class App extends Component {
         <CounterCall {...this.state}  ref='CounterCall' />
         <CounterTransaction {...this.state} onTransaction={this.refresh}/>
         <CounterMetaTransaction {...this.state} onTransaction={this.refresh}/>
+
+        <br />
+        <UpdateWhitelistTransaction {...this.state} onTransaction={this.refresh}/>
       </div>
     );
   }

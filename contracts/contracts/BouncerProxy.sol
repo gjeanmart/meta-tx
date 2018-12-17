@@ -1,67 +1,65 @@
 pragma solidity ^0.4.24;
 
-/*
-  ##############################################################################################
-  ### CREDITS
-  ### austintgriffith [https://github.com/austintgriffith/bouncer-proxy/blob/master/BouncerProxy/BouncerProxy.sol]
-  ##############################################################################################
-
-  Bouncer identity proxy that executes meta transactions for etherless accounts.
-
-  Purpose:
-  I wanted a way for etherless accounts to transact with the blockchain through an identity proxy without paying gas.
-  I'm sure there are many examples of something like this already deployed that work a lot better, this is just me learning.
-    (I would love feedback: https://twitter.com/austingriffith)
-
-  1) An etherless account crafts a meta transaction and signs it
-  2) A (properly incentivized) relay account submits the transaction to the BouncerProxy and pays the gas
-  3) If the meta transaction is valid AND the etherless account is a valid 'Bouncer', the transaction is executed
-      (and the sender is paid in arbitrary tokens from the signer)
-
-  Inspired by:
-    @avsa - https://www.youtube.com/watch?v=qF2lhJzngto found this later: https://github.com/status-im/contracts/blob/73-economic-abstraction/contracts/identity/IdentityGasRelay.sol
-    @mattgcondon - https://twitter.com/mattgcondon/status/1022287545139449856 && https://twitter.com/mattgcondon/status/1021984009428107264
-    @owocki - https://twitter.com/owocki/status/1021859962882908160
-    @danfinlay - https://twitter.com/danfinlay/status/1022271384938983424
-    @PhABCD - https://twitter.com/PhABCD/status/1021974772786319361
-    gnosis-safe
-    uport-identity
-
-*/
-
-
-//use case 1:
-//you deploy the bouncer proxy and use it as a standard identity for your own etherless accounts
-//  (multiple devices you don't want to store eth on or move private keys to will need to be added as Bouncers)
-//you run your own relayer and the rewardToken is 0
-
-//use case 2:
-//you deploy the bouncer proxy and use it as a standard identity for your own etherless accounts
-//  (multiple devices you don't want to store eth on or move private keys to will need to be added as Bouncers)
-//  a community if relayers are incentivized by the rewardToken to pay the gas to run your transactions for you
-//SEE: universal logins via @avsa
-
-//use case 3:
-//you deploy the bouncer proxy and use it to let third parties submit transactions as a standard identity
-//  (multiple developer accounts will need to be added as Bouncers to 'whitelist' them to make meta transactions)
-//you run your own relayer and pay for all of their transactions, revoking any bad actors if needed
-//SEE: GitCoin (via @owocki) wants to pay for some of the initial transactions of their Developers to lower the barrier to entry
-
-//use case 4:
-//you deploy the bouncer proxy and use it to let third parties submit transactions as a standard identity
-//  (multiple developer accounts will need to be added as Bouncers to 'whitelist' them to make meta transactions)
-//you run your own relayer and pay for all of their transactions, revoking any bad actors if needed
-
 contract BouncerProxy {
-  //whitelist the deployer so they can whitelist others
+
+  string constant name = "metatx";
+  string constant version = "1";
+  uint256 constant chainId = 17;
+  address constant verifyingContract = 0x1c56346cd2a2bf3202f771f50d3d14a367b48070;
+  bytes32 constant salt = 0xf2d857f4a3edcb9b78b4d503bfe733db1e3f6cdc2b7971ee739626c97e86a558;
+  
+  string private constant EIP712_DOMAIN  = "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract,bytes32 salt)";
+  string private constant METATX_TYPE = "MetaTransaction(address proxy,address from,address to,uint256 value,bytes data,address rewardToken,uint256 rewardAmount,uint nonce)";
+  
+  bytes32 private constant EIP712_DOMAIN_TYPEHASH = keccak256(abi.encodePacked(EIP712_DOMAIN));
+  bytes32 private constant METATX_TYPEHASH = keccak256(abi.encodePacked(METATX_TYPE));
+  bytes32 private constant DOMAIN_SEPARATOR = keccak256(abi.encode(
+      EIP712_DOMAIN_TYPEHASH,
+      keccak256(name),
+      keccak256(version),
+      chainId,
+      verifyingContract,
+      salt
+  ));
+  
+  struct MetaTransaction {
+      address proxy; 
+      address from; 
+      address to; 
+      uint256 value; 
+      bytes data; 
+      address rewardToken; 
+      uint256 rewardAmount; 
+      uint256 nonce;
+  }
+
+  function hashMetaTransaction(MetaTransaction memory metatx) private pure returns (bytes32){
+      return keccak256(abi.encodePacked(
+          "\x19\x01",
+          DOMAIN_SEPARATOR,
+          keccak256(abi.encode(
+              METATX_TYPEHASH,
+              metatx.proxy,
+              metatx.from,
+              metatx.to,
+              metatx.value,
+              keccak256(metatx.data),
+              metatx.rewardToken,
+              metatx.rewardAmount,
+              metatx.nonce
+          ))
+      ));
+  }
+  ///////////////////////////////////
+
+  mapping(address => uint) public nonce;
+  mapping(address => bool) public whitelist;
+
   constructor() public {
      whitelist[msg.sender] = true;
   }
-  //to avoid replay
-  mapping(address => uint) public nonce;
-  // allow for third party metatx account to make transactions through this
-  // contract like an identity but make sure the owner has whitelisted the tx
-  mapping(address => bool) public whitelist;
+
+  
   function updateWhitelist(address _account, bool _value) public returns(bool) {
    require(whitelist[msg.sender],"BouncerProxy::updateWhitelist Account Not Whitelisted");
    whitelist[_account] = _value;
@@ -69,7 +67,8 @@ contract BouncerProxy {
    return true;
   }
   event UpdateWhitelist(address _account, bool _value);
-  // copied from https://github.com/uport-project/uport-identity/blob/develop/contracts/Proxy.sol
+
+
   function () public payable { emit Received(msg.sender, msg.value); }
   event Received (address indexed sender, uint value);
 
@@ -78,20 +77,28 @@ contract BouncerProxy {
     return nonce[signer];
   }
 
+  function forward(bytes signature, address signer, address destination, uint value, bytes data, address rewardToken, uint rewardAmount) public {
 
-  function getHash(address signer, address destination, uint value, bytes data, address rewardToken, uint rewardAmount) public view returns(bytes32){
-    return keccak256(abi.encodePacked(address(this), signer, destination, value, data, rewardToken, rewardAmount, nonce[signer]));
-  }
+      // Encode the message
+      MetaTransaction memory metatx = MetaTransaction({
+          proxy: address(this),
+          from: signer,
+          to: destination,
+          value: value,
+          data: data,
+          rewardToken: rewardToken,
+          rewardAmount: rewardAmount,
+          nonce: nonce[signer]
+      });
+      bytes32 _hash = hashMetaTransaction(metatx);
 
-
-  // original forward function copied from https://github.com/uport-project/uport-identity/blob/develop/contracts/Proxy.sol
-  function forward(bytes sig, address signer, address destination, uint value, bytes data, address rewardToken, uint rewardAmount) public {
-      //the hash contains all of the information about the meta transaction to be called
-      bytes32 _hash = getHash(signer, destination, value, data, rewardToken, rewardAmount);
-      //increment the hash so this tx can't run again
+      // Increase the nonce to stop replay attack
       nonce[signer]++;
+
       //this makes sure signer signed correctly AND signer is a valid bouncer
-      //require(signerIsWhitelisted(_hash,sig),"BouncerProxy::forward Signer is not whitelisted");
+      address recovered = recover(_hash, signature);
+      require(recovered == signer);
+
       //make sure the signer pays in whatever token (or ether) the sender and signer agreed to
       // or skip this if the sender is incentivized in other ways and there is no need for a token
       if(rewardAmount>0){
@@ -104,31 +111,28 @@ contract BouncerProxy {
           require((StandardToken(rewardToken)).transfer(msg.sender,rewardAmount));
         }
       }
+
+
+
       //execute the transaction with all the given parameters
       require(executeCall(destination, value, data));
-      emit Forwarded(sig, signer, destination, value, data, rewardToken, rewardAmount, _hash);
+      emit Forwarded(signature, recovered, destination, value, data, rewardToken, rewardAmount, _hash);
   }
-  // when some frontends see that a tx is made from a bouncerproxy, they may want to parse through these events to find out who the signer was etc
-  event Forwarded (bytes sig, address signer, address destination, uint value, bytes data,address rewardToken, uint rewardAmount,bytes32 _hash);
+  event Forwarded (bytes signature, address signer, address destination, uint value, bytes data,address rewardToken, uint rewardAmount,bytes32 _hash);
 
-  // copied from https://github.com/uport-project/uport-identity/blob/develop/contracts/Proxy.sol
-  // which was copied from GnosisSafe
-  // https://github.com/gnosis/gnosis-safe-contracts/blob/master/contracts/GnosisSafe.sol
   function executeCall(address to, uint256 value, bytes data) internal returns (bool success) {
     assembly {
        success := call(gas, to, value, add(data, 0x20), mload(data), 0, 0)
     }
   }
 
-  //borrowed from OpenZeppelin's ESDA stuff:
-  //https://github.com/OpenZeppelin/openzeppelin-solidity/blob/master/contracts/cryptography/ECDSA.sol
-  function signerIsWhitelisted(bytes32 _hash, bytes _signature) internal view returns (bool){
+  function recover(bytes32 _hash, bytes _signature) internal view returns (address){
     bytes32 r;
     bytes32 s;
     uint8 v;
     // Check the signature length
     if (_signature.length != 65) {
-      return false;
+      return 0x0000000000000000000000000000000000000001;
     }
     // Divide the signature in r, s and v variables
     // ecrecover takes the signature parameters, and the only way to get them
@@ -145,12 +149,10 @@ contract BouncerProxy {
     }
     // If the version is correct return the signer address
     if (v != 27 && v != 28) {
-      return false;
+      return 0x0000000000000000000000000000000000000002;
     } else {
       // solium-disable-next-line arg-overflow
-      return whitelist[ecrecover(keccak256(
-        abi.encodePacked("\x19Ethereum Signed Message:\n32", _hash)
-      ), v, r, s)];
+      return ecrecover(_hash, v, r, s);
     }
   }
 }
